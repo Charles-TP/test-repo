@@ -1,0 +1,47 @@
+name: Deploy Static Website
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_KEY }}
+
+      - name: Add server to known hosts
+        run: |
+          ssh-keyscan -H ${{ secrets.HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy Website
+        run: |
+          # Create temp directory & clean target
+          ssh ${{ secrets.USER }}@${{ secrets.HOST }} << 'EOF'
+            mkdir -p ~/deploy_temp
+            rm -rf ~/deploy_temp/*
+            sudo rm -rf /var/www/html/*
+          EOF
+
+          # Upload files to temp directory (no permission issues here)
+          scp -r * ${{ secrets.USER }}@${{ secrets.HOST }}:~/deploy_temp/
+
+          # Move files into web directory with proper permissions
+          ssh ${{ secrets.USER }}@${{ secrets.HOST }} << 'EOF'
+            sudo cp -r ~/deploy_temp/* /var/www/html/
+
+            # Set correct ownership & permissions
+            sudo chown -R www-data:www-data /var/www/html
+            sudo chmod -R 755 /var/www/html
+
+            # Cleanup
+            rm -rf ~/deploy_temp
+          EOF
