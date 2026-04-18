@@ -18,13 +18,30 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_KEY }}
 
-      - name: Deploy HTML to Server
+      - name: Add server to known hosts
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.USER }}@${{ secrets.HOST }} << 'EOF'
+          ssh-keyscan -H ${{ secrets.HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy Website
+        run: |
+          # Create temp directory & clean target
+          ssh ${{ secrets.USER }}@${{ secrets.HOST }} << 'EOF'
+            mkdir -p ~/deploy_temp
+            rm -rf ~/deploy_temp/*
             sudo rm -rf /var/www/html/*
-            sudo mkdir -p /var/www/html
-            exit
           EOF
 
-          scp -o StrictHostKeyChecking=no -r * ${{ secrets.USER }}@${{ secrets.HOST }}:/var/www/html/
-          
+          # Upload files to temp directory (no permission issues here)
+          scp -r * ${{ secrets.USER }}@${{ secrets.HOST }}:~/deploy_temp/
+
+          # Move files into web directory with proper permissions
+          ssh ${{ secrets.USER }}@${{ secrets.HOST }} << 'EOF'
+            sudo cp -r ~/deploy_temp/* /var/www/html/
+
+            # Set correct ownership & permissions
+            sudo chown -R www-data:www-data /var/www/html
+            sudo chmod -R 755 /var/www/html
+
+            # Cleanup
+            rm -rf ~/deploy_temp
+          EOF
