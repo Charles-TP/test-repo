@@ -1,0 +1,30 @@
+name: Deploy Static Website
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_KEY }}
+
+      - name: Deploy HTML to Server
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.USER }}@${{ secrets.HOST }} << 'EOF'
+            sudo rm -rf /var/www/html/*
+            sudo mkdir -p /var/www/html
+            exit
+          EOF
+
+          scp -o StrictHostKeyChecking=no -r * ${{ secrets.USER }}@${{ secrets.HOST }}:/var/www/html/
+          
